@@ -71,6 +71,52 @@ describe('#loadable', () => {
     expect(container).toHaveTextContent('prop fallback')
   })
 
+  it('allows delaying load with watchdog', async () => {
+    const load = createLoadFunction()
+    const watchdog = createLoadFunction()
+    const Component = loadable(load, {
+      fallback: 'fallback',
+      watchdog,
+    })
+    const { container } = render(<Component someProp='123' />)
+    expect(container).toHaveTextContent('fallback')
+    load.resolve({ default: () => 'loaded' })
+    expect(watchdog).toHaveBeenCalledWith(
+      new Promise(() => {}),
+      { someProp: '123', __chunkExtractor: undefined, forwardedRef: null }
+    )
+    await flushPromises()
+    expect(container).toHaveTextContent('fallback')
+    watchdog.resolve()
+    await flushPromises()
+    expect(container).toHaveTextContent('loaded')
+  })
+
+  it('allows cancelling load with watchdog', async () => {
+    const load = createLoadFunction()
+    const watchdog = createLoadFunction()
+    const Component = loadable(load, {
+      fallback: 'fallback',
+      watchdog,
+    })
+    const { container } = render((
+      <Catch>
+        <Component someProp='123' />
+      </Catch>
+    ))
+    expect(container).toHaveTextContent('fallback')
+    load.resolve({ default: () => 'loaded' })
+    expect(watchdog).toHaveBeenCalledWith(
+      new Promise(() => {}),
+      { someProp: '123', __chunkExtractor: undefined, forwardedRef: null }
+    )
+    await flushPromises()
+    expect(container).toHaveTextContent('fallback')
+    watchdog.reject(new Error('timeout'))
+    await flushPromises()
+    expect(container).toHaveTextContent('error')
+  })
+
   it('mounts component when loaded', async () => {
     const load = createLoadFunction()
     const Component = loadable(load)
